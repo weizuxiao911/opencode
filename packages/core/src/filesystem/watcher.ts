@@ -120,11 +120,12 @@ const layer = Layer.effect(
     const config = (yield* (yield* Config.Service).entries())
       .filter((entry): entry is Config.Document => entry.type === "document")
       .flatMap((item) => item.info.watcher?.ignore ?? [])
-    if (location.vcs && (yield* Flag.OPENCODE_EXPERIMENTAL_FILEWATCHER)) {
-      yield* Effect.forkScoped(
-        subscribe(location.directory, [...Ignore.PATTERNS, ...config, ...protecteds(location.directory)]),
-      )
-    }
+    // numas: 总是启 fs watcher (不论是否 git 仓库, 不需 experimental flag)
+    // 原来条件: location.vcs && OPENCODE_EXPERIMENTAL_FILEWATCHER — numas 本地 IDE,
+    // 用户工作目录常非 git 仓库, 改文件需要实时同步到 IDE, 必须总启
+    yield* Effect.forkScoped(
+      subscribe(location.directory, [...Ignore.PATTERNS, ...config, ...protecteds(location.directory)]),
+    )
 
     if (location.vcs?.type === "git") {
       const resolved = (yield* git.repo.discover(location.directory))?.gitDirectory
