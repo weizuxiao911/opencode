@@ -103,8 +103,10 @@ async function fsStat(idePath: string): Promise<FsStatResult | null> {
  *  - file:///workspace/1.txt (旧 BrowserFS mount 路径, fireFilesChange 自己发)
  *  - file:///Users/weizuxiao/.../4.txt (BrowserFS 实际 URI = host 绝对路径, editor 用,
  *    含 URL-encoded 字符如 %E6%98%A5 中文, 不能直接和 effectiveCwd() 比)
- *  都转成 codeblitz IDE 相对路径 (即相对于 host cwd): /1.txt, /4.txt */
-function uriToRel(uri: string): string {
+ *  都转成 codeblitz IDE 相对路径 (即相对于 host cwd): /1.txt, /4.txt
+ *  返回 null 表示路径不在 host cwd 下, 调用方应跳过 (fire 出去 BrowserFS 会当 cwd 内路径
+ *  处理 → 触发 stat 500 + DirInode reset + "explorer 树已重建" 全清空 = 文件被误删) */
+function uriToRel(uri: string): string | null {
   const marker = `file://${WORKSPACE_ROOT}`;
   if (uri.startsWith(marker)) return uri.slice(marker.length) || '/';
   const idx = uri.indexOf('://');
@@ -116,11 +118,15 @@ function uriToRel(uri: string): string {
   } catch {
     path = rawPath;
   }
-  // host 绝对路径 → 去 host cwd 前缀
+  // host 绝对路径 → 去 host cwd 前缀; 不在 cwd 下 → null 丢弃
   const hostCwd = effectiveCwd();
-  if (hostCwd && path.startsWith(hostCwd + '/')) {
-    return path.slice(hostCwd.length) || '/';
+  if (hostCwd) {
+    const normCwd = hostCwd.replace(/\/+$/, '');
+    if (path === normCwd) return '/';
+    if (path.startsWith(normCwd + '/')) return path.slice(normCwd.length) || '/';
+    return null;
   }
+  // 兜底: 无 cwd 时接受任意绝对路径 (保持原行为)
   return path.startsWith('/') ? path : `/${path}`;
 }
 
@@ -444,17 +450,26 @@ export class FileSystemServiceImpl implements IFileSystem {
       if (writeFs?.removePath) {
         changes.forEach((c) => {
           if (c.type === FileChangeType.DELETED) {
-            try { writeFs.removePath(uriToRel(c.uri)); } catch { /* ignore */ }
+            const rel = uriToRel(c.uri);
+            if (rel === null) return; // 路径不在 host cwd, 跳过
+            try { writeFs.removePath(rel); } catch { /* ignore */ }
           }
         });
       }
-      changes.forEach((c) => this.invalidateParent(uriToRel(c.uri)));
-      this.fileService.fireFilesChange({ changes });
+      changes.forEach((c) => {
+        const rel = uriToRel(c.uri);
+        if (rel !== null) this.invalidateParent(rel);
+      });
+      // 过滤掉不在 host cwd 下的路径, 避免 BrowserFS 当 cwd 内路径处理触发 stat 500
+      // + DirInode reset + "explorer 树已重建 (删除同步)" 全清空 (用户感知: 文件被删)
+      const safeChanges = changes.filter((c) => uriToRel(c.uri) !== null);
+      this.fileService.fireFilesChange({ changes: safeChanges });
       // 额外 fire 父目录 → 触发 explorer 树刷新 (单文件 ADDED 不会自动刷新树).
       // 根目录用 DELETED (type 2): explorer isRootAffected 只认 type > UPDATED 才强制刷新整树.
       const dirChanges = new Map<string, boolean>();
       changes.forEach((c) => {
         const rel = uriToRel(c.uri);
+        if (rel === null) return; // 路径不在 host cwd, 跳过
         const parent = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) || '/' : '/';
         if (parent !== rel) {
           const dirUri = parent === '/' ? `file://${WORKSPACE_ROOT}` : `file://${WORKSPACE_ROOT}${parent}`;
@@ -470,7 +485,10 @@ export class FileSystemServiceImpl implements IFileSystem {
         });
       }
       // 外部修改 → 已打开且不 dirty 的编辑器直接更新内容 (绕开 OpenSumi getMd5 缓存链路)
-      changes.forEach((c) => this.syncOpenEditor(uriToRel(c.uri)));
+      changes.forEach((c) => {
+        const rel = uriToRel(c.uri);
+        if (rel !== null) this.syncOpenEditor(rel);
+      });
       // 强制 explorer 树刷新: 删除事件 → 重建 root (BrowserFS 缓存/树节点残留, refresh 不移除);
       // 其他事件 → refresh.
       try {
