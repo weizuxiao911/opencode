@@ -38,7 +38,7 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
         return HttpServerResponse.stream(
           output.pipe(Stream.merge(heartbeat, { haltStrategy: "left" }), Stream.encodeText),
           {
-            contentType: "text/event-stream",
+            contentType: "text/event-stream; charset=utf-8",
             headers: {
               "Cache-Control": "no-cache, no-transform",
               "X-Accel-Buffering": "no",
