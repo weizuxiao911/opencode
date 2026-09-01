@@ -2495,6 +2495,67 @@ export type FilesFindOutput = {
   readonly data: ReadonlyArray<{ readonly path: string; readonly type: "file" | "directory" }>
 }
 
+export type FilesStatInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly path: string
+  }["location"]
+  readonly path: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly path: string
+  }["path"]
+}
+
+export type FilesStatOutput = {
+  readonly location: {
+    readonly directory: string
+    readonly workspaceID?: string
+    readonly project: { readonly id: string; readonly directory: string }
+  }
+  readonly data: { readonly path: string; readonly type: "file" | "directory" }
+}
+
+export type FilesWriteInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly path: { readonly path: string; readonly content: string; readonly mode?: number | undefined }["path"]
+  readonly content: { readonly path: string; readonly content: string; readonly mode?: number | undefined }["content"]
+  readonly mode?: { readonly path: string; readonly content: string; readonly mode?: number | undefined }["mode"]
+}
+
+export type FilesWriteOutput = void
+
+export type FilesMkdirInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly path: { readonly path: string; readonly recursive?: boolean | undefined }["path"]
+  readonly recursive?: { readonly path: string; readonly recursive?: boolean | undefined }["recursive"]
+}
+
+export type FilesMkdirOutput = void
+
+export type FilesRemoveInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly path: { readonly path: string; readonly recursive?: boolean | undefined }["path"]
+  readonly recursive?: { readonly path: string; readonly recursive?: boolean | undefined }["recursive"]
+}
+
+export type FilesRemoveOutput = void
+
+export type FilesRenameInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly from: { readonly from: string; readonly to: string }["from"]
+  readonly to: { readonly from: string; readonly to: string }["to"]
+}
+
+export type FilesRenameOutput = void
+
 export type CommandsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined

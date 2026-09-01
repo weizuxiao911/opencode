@@ -35,5 +35,39 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
           }),
         ),
       )
+      .handle("fs.stat", (ctx) =>
+        response(
+          Effect.gen(function* () {
+            const fs = yield* FileSystem.Service
+            return yield* fs.stat({ path: ctx.query.path })
+          }),
+        ),
+      )
+      .handle("fs.write", (ctx) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.Service
+          const { path, content, mode } = ctx.payload
+          const bytes = new Uint8Array(Buffer.from(content, "base64"))
+          yield* fs.write({ path, content: bytes, mode })
+        }),
+      )
+      .handle("fs.mkdir", (ctx) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.Service
+          yield* fs.mkdir(ctx.payload)
+        }),
+      )
+      .handle("fs.remove", (ctx) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.Service
+          yield* fs.remove(ctx.payload)
+        }),
+      )
+      .handle("fs.rename", (ctx) =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.Service
+          yield* fs.rename(ctx.payload)
+        }),
+      )
   }),
 )

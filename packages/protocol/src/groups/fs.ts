@@ -17,6 +17,32 @@ const FindQuery = Schema.Struct({
   limit: Schema.NumberFromString.pipe(Schema.decodeTo(PositiveInt), Schema.optional),
 })
 
+const StatQuery = Schema.Struct({
+  ...LocationQuery.fields,
+  path: RelativePath,
+})
+
+const WritePayload = Schema.Struct({
+  path: RelativePath,
+  content: Schema.String,
+  mode: Schema.Number.pipe(Schema.optional),
+})
+
+const MkdirPayload = Schema.Struct({
+  path: RelativePath,
+  recursive: Schema.Boolean.pipe(Schema.optional),
+})
+
+const RemovePayload = Schema.Struct({
+  path: RelativePath,
+  recursive: Schema.Boolean.pipe(Schema.optional),
+})
+
+const RenamePayload = Schema.Struct({
+  from: RelativePath,
+  to: RelativePath,
+})
+
 export const FileSystemGroup = HttpApiGroup.make("server.fs")
   .add(
     HttpApiEndpoint.get("fs.read", "/api/fs/read/*", {
@@ -57,6 +83,80 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           identifier: "v2.fs.find",
           summary: "Find files",
           description: "Find recursively ranked filesystem entries relative to the requested location.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("fs.stat", "/api/fs/stat", {
+      query: StatQuery,
+      success: Location.response(FileSystem.Entry),
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.fs.stat",
+          summary: "Stat path",
+          description: "Return one filesystem entry (file or directory) for a path relative to the location.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.write", "/api/fs/write", {
+      query: LocationQuery,
+      payload: WritePayload,
+      success: HttpApiSchema.NoContent,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.fs.write",
+          summary: "Write file",
+          description: "Write bytes to a path relative to the location. `content` is base64-encoded.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.mkdir", "/api/fs/mkdir", {
+      query: LocationQuery,
+      payload: MkdirPayload,
+      success: HttpApiSchema.NoContent,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.fs.mkdir",
+          summary: "Make directory",
+          description: "Create a directory (recursively by default) at a path relative to the location.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.remove", "/api/fs/remove", {
+      query: LocationQuery,
+      payload: RemovePayload,
+      success: HttpApiSchema.NoContent,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.fs.remove",
+          summary: "Remove path",
+          description: "Remove a file or (with `recursive: true`) a directory at a path relative to the location.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.post("fs.rename", "/api/fs/rename", {
+      query: LocationQuery,
+      payload: RenamePayload,
+      success: HttpApiSchema.NoContent,
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.fs.rename",
+          summary: "Rename path",
+          description: "Rename a path to a new path, both relative to the location.",
         }),
       ),
   )

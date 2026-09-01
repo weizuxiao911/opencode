@@ -26,6 +26,14 @@ const withTmp = <A, E, R>(f: (directory: string) => Effect.Effect<A, E, R>) =>
     (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
   ).pipe(Effect.flatMap((tmp) => f(tmp.path)))
 
+const pathExists = (filepath: string) =>
+  Effect.promise(() =>
+    fs
+      .access(filepath)
+      .then(() => true)
+      .catch(() => false),
+  )
+
 describe("FileSystem", () => {
   it.live("reads text and binary files", () =>
     withTmp((directory) =>
@@ -63,6 +71,112 @@ describe("FileSystem", () => {
           .read({ path: RelativePath.make("../outside.txt") })
           .pipe(Effect.exit)
         expect(Exit.isFailure(result)).toBe(true)
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("stat returns entry for files and directories", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() => fs.mkdir(path.join(directory, "sub")))
+        yield* Effect.promise(() => fs.writeFile(path.join(directory, "file.txt"), "x"))
+        const service = yield* FileSystem.Service
+        const file = yield* service.stat({ path: RelativePath.make("file.txt") })
+        const dir = yield* service.stat({ path: RelativePath.make("sub") })
+        expect({ path: file.path, type: file.type }).toEqual({ path: RelativePath.make("file.txt"), type: "file" })
+        expect({ path: dir.path, type: dir.type }).toEqual({ path: RelativePath.make("sub" + path.sep), type: "directory" })
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("write creates and overwrites files", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const service = yield* FileSystem.Service
+        yield* service.write({ path: RelativePath.make("a.txt"), content: new Uint8Array([104, 105]) })
+        expect(yield* Effect.promise(() => fs.readFile(path.join(directory, "a.txt"), "utf8"))).toBe("hi")
+        yield* service.write({ path: RelativePath.make("a.txt"), content: new Uint8Array([98, 121, 101]) })
+        expect(yield* Effect.promise(() => fs.readFile(path.join(directory, "a.txt"), "utf8"))).toBe("bye")
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("mkdir creates nested directories", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        yield* (yield* FileSystem.Service).mkdir({
+          path: RelativePath.make("a/b/c"),
+          recursive: true,
+        })
+        const stat = yield* Effect.promise(() => fs.stat(path.join(directory, "a", "b", "c")))
+        expect(stat.isDirectory()).toBe(true)
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("remove deletes files and directories", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const service = yield* FileSystem.Service
+        yield* Effect.promise(() => fs.writeFile(path.join(directory, "x.txt"), "x"))
+        yield* service.remove({ path: RelativePath.make("x.txt") })
+        expect(yield* pathExists(path.join(directory, "x.txt"))).toBe(false)
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("rename moves files within the location", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const service = yield* FileSystem.Service
+        yield* Effect.promise(() => fs.mkdir(path.join(directory, "nested")))
+        yield* Effect.promise(() => fs.writeFile(path.join(directory, "old.txt"), "x"))
+        yield* service.rename({
+          from: RelativePath.make("old.txt"),
+          to: RelativePath.make("nested/new.txt"),
+        })
+        expect(yield* pathExists(path.join(directory, "old.txt"))).toBe(false)
+        const stat = yield* Effect.promise(() => fs.stat(path.join(directory, "nested", "new.txt")))
+        expect(stat.isFile()).toBe(true)
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("write rejects paths that escape the location", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const result = yield* (yield* FileSystem.Service)
+          .write({ path: RelativePath.make("../escape.txt"), content: new Uint8Array([0x78]) })
+          .pipe(Effect.exit)
+        expect(Exit.isFailure(result)).toBe(true)
+        expect(yield* pathExists(path.join(directory, "..", "escape.txt"))).toBe(false)
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("remove rejects paths that escape the location", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const result = yield* (yield* FileSystem.Service)
+          .remove({ path: RelativePath.make("../victim.txt") })
+          .pipe(Effect.exit)
+        expect(Exit.isFailure(result)).toBe(true)
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("rename rejects targets that escape the location", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() => fs.writeFile(path.join(directory, "stays.txt"), "x"))
+        const result = yield* (yield* FileSystem.Service)
+          .rename({
+            from: RelativePath.make("stays.txt"),
+            to: RelativePath.make("../escapes.txt"),
+          })
+          .pipe(Effect.exit)
+        expect(Exit.isFailure(result)).toBe(true)
+        expect(yield* pathExists(path.join(directory, "stays.txt"))).toBe(true)
       }).pipe(provide(directory)),
     ),
   )

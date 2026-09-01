@@ -81,6 +81,16 @@ import type {
   FilesListOutput,
   FilesFindInput,
   FilesFindOutput,
+  FilesStatInput,
+  FilesStatOutput,
+  FilesWriteInput,
+  FilesWriteOutput,
+  FilesMkdirInput,
+  FilesMkdirOutput,
+  FilesRemoveInput,
+  FilesRemoveOutput,
+  FilesRenameInput,
+  FilesRenameOutput,
   CommandsListInput,
   CommandsListOutput,
   SkillsListInput,
@@ -776,6 +786,70 @@ export function make(options: ClientOptions) {
             successStatus: 200,
             declaredStatuses: [401, 400],
             empty: false,
+          },
+          requestOptions,
+        ),
+      stat: (input: FilesStatInput, requestOptions?: RequestOptions) =>
+        request<FilesStatOutput>(
+          {
+            method: "GET",
+            path: `/api/fs/stat`,
+            query: { location: input["location"], path: input["path"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      write: (input: FilesWriteInput, requestOptions?: RequestOptions) =>
+        request<FilesWriteOutput>(
+          {
+            method: "POST",
+            path: `/api/fs/write`,
+            query: { location: input["location"] },
+            body: { path: input["path"], content: input["content"], mode: input["mode"] },
+            successStatus: 204,
+            declaredStatuses: [401, 400],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      mkdir: (input: FilesMkdirInput, requestOptions?: RequestOptions) =>
+        request<FilesMkdirOutput>(
+          {
+            method: "POST",
+            path: `/api/fs/mkdir`,
+            query: { location: input["location"] },
+            body: { path: input["path"], recursive: input["recursive"] },
+            successStatus: 204,
+            declaredStatuses: [401, 400],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      remove: (input: FilesRemoveInput, requestOptions?: RequestOptions) =>
+        request<FilesRemoveOutput>(
+          {
+            method: "POST",
+            path: `/api/fs/remove`,
+            query: { location: input["location"] },
+            body: { path: input["path"], recursive: input["recursive"] },
+            successStatus: 204,
+            declaredStatuses: [401, 400],
+            empty: true,
+          },
+          requestOptions,
+        ),
+      rename: (input: FilesRenameInput, requestOptions?: RequestOptions) =>
+        request<FilesRenameOutput>(
+          {
+            method: "POST",
+            path: `/api/fs/rename`,
+            query: { location: input["location"] },
+            body: { from: input["from"], to: input["to"] },
+            successStatus: 204,
+            declaredStatuses: [401, 400],
+            empty: true,
           },
           requestOptions,
         ),

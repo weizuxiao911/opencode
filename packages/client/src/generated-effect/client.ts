@@ -492,7 +492,71 @@ const Endpoint10_1 = (raw: RawClient["server.fs"]) => (input: Endpoint10_1Input)
     query: { location: input["location"], query: input["query"], type: input["type"], limit: input["limit"] },
   }).pipe(Effect.mapError(mapClientError))
 
-const adaptGroup10 = (raw: RawClient["server.fs"]) => ({ list: Endpoint10_0(raw), find: Endpoint10_1(raw) })
+type Endpoint10_2Request = Parameters<RawClient["server.fs"]["fs.stat"]>[0]
+type Endpoint10_2Input = {
+  readonly location?: Endpoint10_2Request["query"]["location"]
+  readonly path: Endpoint10_2Request["query"]["path"]
+}
+const Endpoint10_2 = (raw: RawClient["server.fs"]) => (input: Endpoint10_2Input) =>
+  raw["fs.stat"]({ query: { location: input["location"], path: input["path"] } }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint10_3Request = Parameters<RawClient["server.fs"]["fs.write"]>[0]
+type Endpoint10_3Input = {
+  readonly location?: Endpoint10_3Request["query"]["location"]
+  readonly path: Endpoint10_3Request["payload"]["path"]
+  readonly content: Endpoint10_3Request["payload"]["content"]
+  readonly mode?: Endpoint10_3Request["payload"]["mode"]
+}
+const Endpoint10_3 = (raw: RawClient["server.fs"]) => (input: Endpoint10_3Input) =>
+  raw["fs.write"]({
+    query: { location: input["location"] },
+    payload: { path: input["path"], content: input["content"], mode: input["mode"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint10_4Request = Parameters<RawClient["server.fs"]["fs.mkdir"]>[0]
+type Endpoint10_4Input = {
+  readonly location?: Endpoint10_4Request["query"]["location"]
+  readonly path: Endpoint10_4Request["payload"]["path"]
+  readonly recursive?: Endpoint10_4Request["payload"]["recursive"]
+}
+const Endpoint10_4 = (raw: RawClient["server.fs"]) => (input: Endpoint10_4Input) =>
+  raw["fs.mkdir"]({
+    query: { location: input["location"] },
+    payload: { path: input["path"], recursive: input["recursive"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint10_5Request = Parameters<RawClient["server.fs"]["fs.remove"]>[0]
+type Endpoint10_5Input = {
+  readonly location?: Endpoint10_5Request["query"]["location"]
+  readonly path: Endpoint10_5Request["payload"]["path"]
+  readonly recursive?: Endpoint10_5Request["payload"]["recursive"]
+}
+const Endpoint10_5 = (raw: RawClient["server.fs"]) => (input: Endpoint10_5Input) =>
+  raw["fs.remove"]({
+    query: { location: input["location"] },
+    payload: { path: input["path"], recursive: input["recursive"] },
+  }).pipe(Effect.mapError(mapClientError))
+
+type Endpoint10_6Request = Parameters<RawClient["server.fs"]["fs.rename"]>[0]
+type Endpoint10_6Input = {
+  readonly location?: Endpoint10_6Request["query"]["location"]
+  readonly from: Endpoint10_6Request["payload"]["from"]
+  readonly to: Endpoint10_6Request["payload"]["to"]
+}
+const Endpoint10_6 = (raw: RawClient["server.fs"]) => (input: Endpoint10_6Input) =>
+  raw["fs.rename"]({ query: { location: input["location"] }, payload: { from: input["from"], to: input["to"] } }).pipe(
+    Effect.mapError(mapClientError),
+  )
+
+const adaptGroup10 = (raw: RawClient["server.fs"]) => ({
+  list: Endpoint10_0(raw),
+  find: Endpoint10_1(raw),
+  stat: Endpoint10_2(raw),
+  write: Endpoint10_3(raw),
+  mkdir: Endpoint10_4(raw),
+  remove: Endpoint10_5(raw),
+  rename: Endpoint10_6(raw),
+})
 
 type Endpoint11_0Request = Parameters<RawClient["server.command"]["command.list"]>[0]
 type Endpoint11_0Input = { readonly location?: Endpoint11_0Request["query"]["location"] }

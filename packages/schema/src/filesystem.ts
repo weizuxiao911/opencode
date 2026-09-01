@@ -9,7 +9,23 @@ const Edited = define({
   type: "file.edited",
   schema: { file: Schema.String },
 })
-export const Event = { Edited, Definitions: inventory(Edited) }
+
+const Removed = define({
+  type: "file.removed",
+  schema: { file: Schema.String },
+})
+
+const Renamed = define({
+  type: "file.renamed",
+  schema: { from: Schema.String, to: Schema.String },
+})
+
+export const Event = {
+  Edited,
+  Removed,
+  Renamed,
+  Definitions: inventory(Edited, Removed, Renamed),
+}
 
 export interface Entry extends Schema.Schema.Type<typeof Entry> {}
 export const Entry = Schema.Struct({
