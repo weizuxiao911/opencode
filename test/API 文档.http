@@ -1,4 +1,4 @@
-### Variables
+### Variables 
 @host = http://127.0.0.1:4096
 @dir = /Users/weizuxiao/Documents/opencode
 @sessionID = ses_xxx
