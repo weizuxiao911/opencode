@@ -3,8 +3,8 @@ import { UI } from "../ui"
 import { effectCmd } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opencode-ai/core/flag/flag"
-import open from "open"
 import { networkInterfaces } from "os"
+import { spawn } from "child_process"
 
 function getNetworkIPs() {
   const nets = networkInterfaces()
@@ -46,38 +46,44 @@ export const WebCommand = effectCmd({
     UI.println(UI.logo("  "))
     UI.empty()
 
+    const displayUrl =
+      opts.hostname === "0.0.0.0" ? `http://localhost:${server.port}` : server.url.toString()
+
     if (opts.hostname === "0.0.0.0") {
-      // Show localhost for local access
-      const localhostUrl = `http://localhost:${server.port}`
-      UI.println(UI.Style.TEXT_INFO_BOLD + "  Local access:      ", UI.Style.TEXT_NORMAL, localhostUrl)
-
-      // Show network IPs for remote access
+      UI.println(UI.Style.TEXT_INFO_BOLD + "  Local access:      ", UI.Style.TEXT_NORMAL, `http://localhost:${server.port}`)
       const networkIPs = getNetworkIPs()
-      if (networkIPs.length > 0) {
-        for (const ip of networkIPs) {
-          UI.println(
-            UI.Style.TEXT_INFO_BOLD + "  Network access:    ",
-            UI.Style.TEXT_NORMAL,
-            `http://${ip}:${server.port}`,
-          )
-        }
+      for (const ip of networkIPs) {
+        UI.println(UI.Style.TEXT_INFO_BOLD + "  Network access:    ", UI.Style.TEXT_NORMAL, `http://${ip}:${server.port}`)
       }
-
       if (opts.mdns) {
-        UI.println(
-          UI.Style.TEXT_INFO_BOLD + "  mDNS:              ",
-          UI.Style.TEXT_NORMAL,
-          `${opts.mdnsDomain}:${server.port}`,
-        )
+        UI.println(UI.Style.TEXT_INFO_BOLD + "  mDNS:              ", UI.Style.TEXT_NORMAL, `${opts.mdnsDomain}:${server.port}`)
       }
-
-      // Open localhost in browser
-      open(localhostUrl).catch(() => {})
     } else {
-      const displayUrl = server.url.toString()
       UI.println(UI.Style.TEXT_INFO_BOLD + "  Web interface:    ", UI.Style.TEXT_NORMAL, displayUrl)
-      open(displayUrl).catch(() => {})
     }
+
+    // The macOS `open(1)` binary's first invocation per process takes
+    // 200-500ms in LaunchServices resolving the URL handler, and the
+    // Effect-spawned child holds onto the libuv worker thread long enough
+    // to 499 the very first /agent request that lands during InstanceStore
+    // boot. Defer well past the first request cycle using a setTimeout so
+    // the call lands in libuv's timer phase only after the initial /agent
+    // request has completed. Spawn inside /bin/sh with `&` so the shell
+    // exits immediately and open(1) runs in a brand-new process tree.
+    const handle = setTimeout(() => {
+      try {
+        const child = spawn("/bin/sh", ["-c", `open "${displayUrl.replace(/"/g, '\\"')}" &`], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        })
+        child.on("error", () => {})
+        child.unref()
+      } catch {
+        // ignore — opening the browser is best-effort
+      }
+    }, 1500)
+    handle.unref()
 
     yield* Effect.never
   }),
