@@ -440,7 +440,7 @@ export const Chat: React.FC = () => {
   }, [sessionID]);
 
   // --- opencode SSE 事件流: 打字机式流式响应 (替代 500ms 轮询) ---
-  // client.event.subscribe() → /global/event, 每个事件 { type, properties }.
+  // V2 SDK event.subscribe() → /api/event, 顶层 {id, type, data} 格式.
   // 注意: 事件频发时严禁触发 HTTP (loadMessages), 否则请求洪流 → ERR_INSUFFICIENT_RESOURCES.
   // busy 状态对账: 用 GET /session/status 全量刷新 (事件流丢事件/切会话后校正)
   const refreshSessionStatuses = useCallback(async () => {
@@ -477,13 +477,12 @@ export const Chat: React.FC = () => {
         return next;
       });
     };
-    /** v1 SSE 订阅: EventSource('/global/event') → async iterable {type, properties}.
-     *  v2 SDK 的 event.subscribe() (/api/event) 事件用 `data` 字段, 而 chat 按 v1 读 `properties`,
-     *  v1 → v2 切换时静默丢光. 直接走 v1 端点 (跟 fs.ts fallback 一致). */
+    /** V2 SSE 订阅: EventSource('/api/event') → async iterable {type, data}.
+     *  V1 /global/event 是 {payload:{id,type,properties}}, 已弃用. */
     const subscribeV1Events = async (): Promise<AsyncIterableIterator<{ type: string; properties: any }>> => {
       const base = (window as any).__APP_OPENCODE_RUNTIME__?.baseUrl;
       if (!base) throw new Error('opencode baseUrl missing');
-      const source = new EventSource(secureUrl(`${base}/global/event`), { withCredentials: false });
+      const source = new EventSource(secureUrl(`${base}/api/event`), { withCredentials: false });
       es = source;
       const queue: Array<{ type: string; properties: any }> = [];
       let resolveNext: ((v: IteratorResult<{ type: string; properties: any }>) => void) | null = null;
@@ -492,10 +491,10 @@ export const Chat: React.FC = () => {
         if (closed) return;
         try {
           const raw = JSON.parse(msg.data);
-          // v1 Global 格式: {"payload":{"id","type","properties"}}; v1 Event 格式: 顶层 id/type/properties
+          // V2 顶层 {id, location?, type, data}; 兜底 v1 payload 包装 (旧 server).
           const ev = (raw && raw.payload) || raw;
           const { type, properties: props, data } = ev || {};
-          const properties = props || data; // 兜底 v2
+          const properties = props || data;
           if (!type || !properties) return;
           const item = { type, properties };
           if (resolveNext) {
@@ -508,7 +507,7 @@ export const Chat: React.FC = () => {
       source.onerror = () => {
         if (closed) return;
         // EventSource 浏览器自动重连, 不需要手动 reconnect
-        console.warn('[chat] /global/event SSE 异常, 浏览器自动重连');
+        console.warn('[chat] /api/event SSE 异常, 浏览器自动重连');
       };
       const it: AsyncIterableIterator<{ type: string; properties: any }> = {
         [Symbol.asyncIterator]() { return this; },

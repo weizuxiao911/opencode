@@ -8,7 +8,7 @@
  *   ask 调用 → 创建会话 → 发送提示词 → 全局监听按会话过滤 → 组装结果回调
  *
  * 架构:
- *   - 内部维护单 EventSource 订阅 /global/event (opencode 全局 SSE)
+ *   - 内部维护单 EventSource 订阅 /api/event (V2 SDK SSE)
  *   - 每次 ask 创建一个独立 session (client.session.create) + 异步发 prompt (client.session.promptAsync)
  *   - 流式响应按 sessionId 派发给对应回调, session.idle → 组装完整 text 回调
  *
@@ -69,7 +69,7 @@ class AskService {
   private ensureStream() {
     if (this.es) return;
     const base = getBaseUrl();
-    const es = new EventSource(`${base}/global/event`);
+    const es = new EventSource(`${base}/api/event`);
     this.es = es;
     es.onmessage = (msg) => {
       try {

@@ -1034,6 +1034,53 @@ export const styles = `
   max-height: 260px;
 }
 .tool__section.is-error pre { color: var(--ai-danger); background: color-mix(in srgb, var(--ai-danger-bg) 30%, var(--ai-bg)); }
+.tool__section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 0 2px;
+}
+.tool__section-label {
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ai-fg-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tool__copy {
+  font-size: 10.5px; padding: 2px 6px;
+  background: var(--ai-hover); border: none; border-radius: 4px;
+  color: var(--ai-fg-muted); cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.tool__copy:hover { background: var(--ai-active); color: var(--ai-fg); }
+.tool__code {
+  margin: 0; padding: 8px 10px;
+  background: var(--ai-bg); border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; line-height: 1.6;
+  max-width: 100%; min-width: 0;
+  overflow-x: auto; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+  max-height: 260px;
+}
+.tool__status {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; padding: 1px 6px; border-radius: 4px;
+  background: var(--ai-hover); color: var(--ai-fg-muted);
+  flex-shrink: 0;
+}
+.tool__status.is-completed { color: var(--ai-success, #16a34a); background: color-mix(in srgb, var(--ai-success, #16a34a) 12%, var(--ai-hover)); }
+.tool__status.is-error { color: var(--ai-danger); background: color-mix(in srgb, var(--ai-danger) 12%, var(--ai-hover)); }
+.tool__status.is-running { color: var(--ai-accent); background: color-mix(in srgb, var(--ai-accent) 12%, var(--ai-hover)); }
+.tool__status-icon { font-size: 10px; }
+.tool__attach-list {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 4px 0;
+}
+.tool__attach {
+  font-size: 11px; padding: 2px 6px;
+  background: var(--ai-bg); border-radius: 4px;
+  color: var(--ai-fg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 
 /* ========== Question card (OpenCode style) ========== */
 .q {

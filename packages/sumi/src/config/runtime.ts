@@ -97,6 +97,13 @@ export class WriteSyncFS extends SyncKeyValueFileSystem {
   override _syncSync(p: string, data: Buffer, stats: Stats): void {
     super._syncSync(p, data, stats);
     const rel = workspaceRel(p);
+    // 外部同步抑制: 宿主机文件修改 → 直接 pushEditOperations 更新 monaco model → BrowserFS
+    // 触发 _syncSync. 这次写是从服务端拉来的, 不应再回写 (否则跟 host 最新内容竞速,
+    // 且 opencode 版本号会跟编辑器已加载的版本冲突, 弹 "version inconsistent" 错误).
+    if ((window as any).__APP_FS_EXTERNAL_SYNC__?.has?.(rel)) {
+      (window as any).__APP_FS_EXTERNAL_SYNC__.delete(rel);
+      return;
+    }
     if (rel === OVERLAY_DELETION_LOG) {
       // OverlayFS 墓碑日志: 只进 InMemory (保留浏览器内墓碑语义), 不写宿主机.
       // 解析每行 `d<path>` → 逐个同步删宿主机 (fs.rmSync recursive+force, 幂等).
