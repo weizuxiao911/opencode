@@ -41,8 +41,16 @@ import {
  * 替代 FsPty (pty 跑 node worker) — opencode server 新增的 /api/fs 写端点.
  */
 
-/** relative 路径 → opencode 相对路径 (去前导 /) */
+/** idePath → opencode 相对路径
+ *  - "/4.txt" 或 "/dir/2.txt" → "4.txt" / "dir/2.txt"
+ *  - "/workspace/4.txt" → "4.txt" (兼容 codeblitz WORKSPACE_ROOT 残留)
+ *  - "/Users/weizuxiao/.../4.txt" (host 绝对) → "4.txt" (去 host cwd 前缀, 跟 opencode cwd 拼)
+ *  - "/Users/.../其他" (不在 cwd 下) → 原样, opencode 端会 "Path escapes the location" */
 function relForApi(idePath: string): string {
+  const hostCwd = effectiveCwd();
+  if (hostCwd && idePath.startsWith(hostCwd + '/')) {
+    return idePath.slice(hostCwd.length + 1);
+  }
   let p = idePath.replace(/^\/+/, '');
   if (p.startsWith('workspace/')) p = p.slice('workspace/'.length);
   return p;
@@ -91,12 +99,28 @@ async function fsStat(idePath: string): Promise<FsStatResult | null> {
   return fsApiGet<FsStatResult>(`/api/fs/stat?path=${encodeURIComponent(relForApi(idePath))}`).catch(() => null);
 }
 
-/** file:///workspace/1.txt → /1.txt (IDE 相对路径) */
+/** 两种 URI 格式都支持:
+ *  - file:///workspace/1.txt (旧 BrowserFS mount 路径, fireFilesChange 自己发)
+ *  - file:///Users/weizuxiao/.../4.txt (BrowserFS 实际 URI = host 绝对路径, editor 用,
+ *    含 URL-encoded 字符如 %E6%98%A5 中文, 不能直接和 effectiveCwd() 比)
+ *  都转成 codeblitz IDE 相对路径 (即相对于 host cwd): /1.txt, /4.txt */
 function uriToRel(uri: string): string {
   const marker = `file://${WORKSPACE_ROOT}`;
   if (uri.startsWith(marker)) return uri.slice(marker.length) || '/';
   const idx = uri.indexOf('://');
-  const path = idx >= 0 ? uri.slice(idx + 3).replace(/^\/+/, '/') : uri;
+  const rawPath = idx >= 0 ? uri.slice(idx + 3).replace(/^\/+/, '/') : uri;
+  // URL-decode 让路径和 effectiveCwd() (raw) 可比 (BrowserFS 用 URL-encoded 形式)
+  let path: string;
+  try {
+    path = decodeURIComponent(rawPath);
+  } catch {
+    path = rawPath;
+  }
+  // host 绝对路径 → 去 host cwd 前缀
+  const hostCwd = effectiveCwd();
+  if (hostCwd && path.startsWith(hostCwd + '/')) {
+    return path.slice(hostCwd.length) || '/';
+  }
   return path.startsWith('/') ? path : `/${path}`;
 }
 
@@ -255,9 +279,15 @@ const debounceMap = new Map<string, { timer: ReturnType<typeof setTimeout>; even
  * 内部再做 hash 对比 (自己保存/无变化跳过, 断循环).
  */
 function scheduleFsFire(key: string, changeType: FileChangeType): void {
-  const rawUri = `file://${WORKSPACE_ROOT}${key}`;
-  const tmp = rawUri.replace('://', '\u0000\u0000\u0000').replace(/\/+/g, '/').replace('\u0000\u0000\u0000', '://');
-  const uri = tmp;
+  // 关键: BrowserFS 在 sumi 里的 URI 形如 `file:///<host abs path>` (e.g.
+  // `file:///Users/weizuxiao/Documents/2026春季学期实验/4.txt`), 不是 codeblitz 内部的
+  // `file://${WORKSPACE_ROOT}${key}` (e.g. `file:///workspace/4.txt`).
+  // 不匹配 → `BaseFileSystemEditorDocumentProvider._fileContentMd5OnBrowserFs.has(change.uri)`
+  // 永远是 false → 走不到 `acceptExternalChange` → 旧 baseContent 仍保存 → md5 DIFF 错误.
+  // 故 fireFilesChange 的 uri 必须用 host 绝对路径. 旧实现把 mount 路径当 BrowserFS 路径是错的.
+  const hostCwd = effectiveCwd();
+  const absPath = hostCwd && key.startsWith('/') ? `${hostCwd.replace(/\/$/, '')}${key}` : key;
+  const uri = URI.file(absPath).toString();
   const prev = debounceMap.get(key);
   if (prev) clearTimeout(prev.timer);
   const timer = setTimeout(() => {
@@ -330,19 +360,19 @@ export async function startFsWatcher(cwd: string): Promise<void> {
     console.warn('[watcher] no baseUrl, skip');
     return;
   }
-  // fs 事件统一走 /global/event (v1 SSE, FileSystemServiceImpl.connectEvents 已订阅):
-  //   file.edited / file.watcher.updated → scheduleFsFire.
-  // 这里只确认 cwd 存在 (connectEvents 无 cwd 依赖, 但 cwd 校验防止 stale APP_CWD 静默失效).
-  try {
-    await fsApiGet(`/api/fs/list?location[directory]=${encodeURIComponent(cwd)}`);
-    watcherCwd = cwd;
-    watcherStopped = false;
-    watcherRetryCount = 0;
-    console.log('[watcher] /global/event 驱动 (connectEvents), cwd ok=', cwd);
-  } catch (e) {
-    console.warn('[watcher] cwd check exception, skip:', cwd, e);
-    scheduleWatcherRetry();
-  }
+    // fs 事件统一走 /api/event (V2 SSE, FileSystemServiceImpl.connectEvents 已订阅):
+    //   file.edited / file.watcher.updated → scheduleFsFire.
+    // 这里只确认 cwd 存在 (connectEvents 无 cwd 依赖, 但 cwd 校验防止 stale APP_CWD 静默失效).
+    try {
+      await fsApiGet(`/api/fs/list?location[directory]=${encodeURIComponent(cwd)}`);
+      watcherCwd = cwd;
+      watcherStopped = false;
+      watcherRetryCount = 0;
+      console.log('[watcher] /api/event 驱动 (connectEvents), cwd ok=', cwd);
+    } catch (e) {
+      console.warn('[watcher] cwd check exception, skip:', cwd, e);
+      scheduleWatcherRetry();
+    }
 }
 
 export function stopFsWatcher(): void {
@@ -529,6 +559,10 @@ export class FileSystemServiceImpl implements IFileSystem {
           const bytes = await getFileSystemService().read(relPath);
           const content = new TextDecoder().decode(bytes);
           if (content === target.getValue()) return;
+          // 标记本次写入是外部同步 (来自 host), BrowserFS 收到 _syncSync 跳过回写 opencode,
+          // 避免与 host 最新内容竞速 + 触发 opencode 版本号冲突错误.
+          const externalSync = (window as any).__APP_FS_EXTERNAL_SYNC__ ||= new Set<string>();
+          externalSync.add(relPath);
           target.pushEditOperations([], [{ range: target.getFullModelRange(), text: content }], () => null);
           console.log('[fs] 外部修改 → 已同步编辑器:', relPath);
         } catch { /* read/stat 失败静默 */ }
@@ -666,16 +700,18 @@ export class FileSystemServiceImpl implements IFileSystem {
       unlink: FileChangeType.DELETED,
     };
     try {
-      // /global/event (v1 SSE): 事件 {payload: {type, properties}}
-      const source = new EventSource(secureUrl(`${base}/global/event`), { withCredentials: false });
+      // V2 SDK SSE: /api/event 走 effect-smol HttpApi, 顶层 {id, location?, type, data}
+      // (跟 V1 /global/event 的 {payload:{id,type,properties}} 不同, 移除 payload 包装).
+      const source = new EventSource(secureUrl(`${base}/api/event`), { withCredentials: false });
       this.eventAbort = new AbortController();
       source.onmessage = (msg) => {
         try {
           const raw = JSON.parse(msg.data);
+          // V2 顶层: type + data. 兜底 v1 payload 包装 (旧 server).
           const ev = (raw && raw.payload) || raw;
           const t = (ev?.type || '') as string;
           if (!t) return;
-          const props = ev?.properties || ev?.data || {};
+          const props = ev?.data || ev?.properties || {};
           let changeType: string | null = null;
           let relPath = '';
           if (t === 'file.edited') {
@@ -686,13 +722,19 @@ export class FileSystemServiceImpl implements IFileSystem {
             relPath = (props?.file || '').toString();
           }
           if (!changeType || !relPath) return;
-          const rel = relPath.startsWith('/') ? relPath : `/${relPath}`;
+          // 宿主机绝对路径 → codeblitz 相对路径. watcher 报的是 host 绝对路径
+          // (如 /Users/weizuxiao/Documents/.../1.txt), 但 explorer / monaco 走的是
+          // /workspace 前缀, 跟 effectiveCwd() 拼出 browserfs 相对路径.
+          const hostCwd = effectiveCwd();
+          const rel = hostCwd && relPath.startsWith(hostCwd + '/')
+            ? relPath.slice(hostCwd.length)
+            : relPath.startsWith('/') ? relPath : `/${relPath}`;
           console.log('[filesystem] fs event:', t, rel, '→ scheduleFsFire');
           scheduleFsFire(rel, typeMap[changeType] ?? FileChangeType.UPDATED);
         } catch { /* ignore bad frame */ }
       };
       source.onerror = () => { /* EventSource 自动重连 */ };
-      console.log('[filesystem] /global/event subscribed (fs 事件, 修 editor stat 同步)');
+      console.log('[filesystem] /api/event subscribed (V2 SSE)');
     } catch (e) {
       console.warn('[filesystem] event subscribe 失败:', e);
     }
