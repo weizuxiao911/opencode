@@ -2556,6 +2556,23 @@ export type FilesRenameInput = {
 
 export type FilesRenameOutput = void
 
+export type FilesWatchInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly path?: string | undefined
+  }["location"]
+  readonly path?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly path?: string | undefined
+  }["path"]
+}
+
+export type FilesWatchOutput = {
+  readonly path: string
+  readonly type: "add" | "change" | "unlink"
+  readonly timestamp: number
+}
+
 export type CommandsListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined

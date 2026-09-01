@@ -50,6 +50,20 @@ function protecteds(dir: string) {
 
 export const hasNativeBinding = () => !!watcher()
 
+export function subscribe(
+  directory: string,
+  callback: ParcelWatcher.SubscribeCallback,
+  options?: { ignore?: string[]; backend?: string },
+): Effect.Effect<ParcelWatcher.AsyncSubscription | undefined> {
+  const backend = options?.backend ?? getBackend()
+  if (!backend) return Effect.succeed(undefined)
+  const w = watcher()
+  if (!w) return Effect.succeed(undefined)
+  return Effect.promise(() =>
+    w.subscribe(directory, callback, { ignore: options?.ignore ?? [], backend: backend as any }),
+  ).pipe(Effect.timeout(SUBSCRIBE_TIMEOUT_MS), Effect.orElseSucceed(() => undefined))
+}
+
 export interface Interface {}
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/FileWatcher") {}

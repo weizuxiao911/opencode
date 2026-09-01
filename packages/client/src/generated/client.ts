@@ -91,6 +91,8 @@ import type {
   FilesRemoveOutput,
   FilesRenameInput,
   FilesRenameOutput,
+  FilesWatchInput,
+  FilesWatchOutput,
   CommandsListInput,
   CommandsListOutput,
   SkillsListInput,
@@ -850,6 +852,18 @@ export function make(options: ClientOptions) {
             successStatus: 204,
             declaredStatuses: [401, 400],
             empty: true,
+          },
+          requestOptions,
+        ),
+      watch: (input?: FilesWatchInput, requestOptions?: RequestOptions): AsyncIterable<FilesWatchOutput> =>
+        sse<FilesWatchOutput>(
+          {
+            method: "GET",
+            path: `/api/fs/watch`,
+            query: { location: input?.["location"], path: input?.["path"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
           },
           requestOptions,
         ),

@@ -43,6 +43,17 @@ const RenamePayload = Schema.Struct({
   to: RelativePath,
 })
 
+const WatchQuery = Schema.Struct({
+  ...LocationQuery.fields,
+  path: RelativePath.pipe(Schema.optional),
+})
+
+export const WatchEvent = Schema.Struct({
+  path: Schema.String,
+  type: Schema.Literals(["add", "change", "unlink"]),
+  timestamp: Schema.Number,
+}).annotate({ identifier: "FileSystem.WatchEvent" })
+
 export const FileSystemGroup = HttpApiGroup.make("server.fs")
   .add(
     HttpApiEndpoint.get("fs.read", "/api/fs/read/*", {
@@ -157,6 +168,21 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
           identifier: "v2.fs.rename",
           summary: "Rename path",
           description: "Rename a path to a new path, both relative to the location.",
+        }),
+      ),
+  )
+  .add(
+    HttpApiEndpoint.get("fs.watch", "/api/fs/watch", {
+      query: WatchQuery,
+      success: HttpApiSchema.StreamSse({ data: WatchEvent }),
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.fs.watch",
+          summary: "Watch filesystem",
+          description:
+            "Subscribe to filesystem events under the location. Events for the same path are debounced and emitted after 200ms of quiet.",
         }),
       ),
   )
