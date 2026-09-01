@@ -97,6 +97,20 @@ export class AgentServiceImpl implements IAgent, ClientAppContribution {
         defaultShell = shells;
       }
     } catch { /* 忽略, 走默认 */ }
+    // 2.1 hostCwd 兜底: 缺 cwd (无 APP_CWD / path.get 没返回) 时, 探 /api/fs/list?path=.
+    //     用响应的 location.directory 作为实际工作目录 (server 无 directory header 时
+    //     落 process.cwd(), 这里拿回真实值, 避免后续请求无 header 全打错目录).
+    if (!hostCwd && !cwd) {
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/fs/list?path=.`, {
+          headers: { Accept: 'application/json' },
+        });
+        const json = await res.json();
+        const locDir = (json as any)?.location?.directory;
+        if (typeof locDir === 'string' && locDir) hostCwd = locDir;
+        if (hostCwd) console.log('[agent] hostCwd 探测 (fs.list location.directory):', hostCwd);
+      } catch { /* 忽略, 走默认 */ }
+    }
 
     this._runtime = {
       cwd: hostCwd || cwd,
