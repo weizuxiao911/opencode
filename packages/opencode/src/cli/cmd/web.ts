@@ -62,14 +62,30 @@ export const WebCommand = effectCmd({
       UI.println(UI.Style.TEXT_INFO_BOLD + "  Web interface:    ", UI.Style.TEXT_NORMAL, displayUrl)
     }
 
-    // The macOS `open(1)` binary's first invocation per process takes
-    // 200-500ms in LaunchServices resolving the URL handler, and the
-    // Effect-spawned child holds onto the libuv worker thread long enough
-    // to 499 the very first /agent request that lands during InstanceStore
-    // boot. Defer well past the first request cycle using a setTimeout so
-    // the call lands in libuv's timer phase only after the initial /agent
-    // request has completed. Spawn inside /bin/sh with `&` so the shell
-    // exits immediately and open(1) runs in a brand-new process tree.
+    // Pre-warm InstanceStore boot by hitting /agent and /provider from the
+    // server process itself. The macOS `open(1)` binary's first invocation
+    // per process takes 200-500ms in LaunchServices resolving the URL
+    // handler, and the resulting child process tree holds onto libuv
+    // worker threads long enough to 499 the very first /agent request that
+    // lands during InstanceStore boot. Schedule a warmup fetch so the boot
+    // fork runs to completion BEFORE the browser opens, and defer the
+    // browser open via setTimeout(1500) so it lands in libuv's timer phase
+    // only after the initial /agent request has completed. Spawn inside
+    // /bin/sh with `&` so the shell exits immediately and open(1) runs in
+    // a brand-new process tree.
+    const baseUrl = `http://127.0.0.1:${server.port}`
+    const warmupHandle = setTimeout(() => {
+      // fire-and-forget; failures are fine — subsequent real requests will retry
+      Promise.allSettled([
+        fetch(`${baseUrl}/agent`).catch(() => {}),
+        fetch(`${baseUrl}/provider`).catch(() => {}),
+        fetch(`${baseUrl}/path`).catch(() => {}),
+        fetch(`${baseUrl}/skill`).catch(() => {}),
+        fetch(`${baseUrl}/command`).catch(() => {}),
+      ]).catch(() => {})
+    }, 50)
+    warmupHandle.unref()
+
     const handle = setTimeout(() => {
       try {
         const child = spawn("/bin/sh", ["-c", `open "${displayUrl.replace(/"/g, '\\"')}" &`], {
