@@ -22,10 +22,12 @@ export interface AppConfig {
 }
 
 function buildAppConfig(): AppConfig {
+  // 运行时注入优先 (opencode serve/web 渲染时注入 __APP_CONFIG__.registryBaseUrl 等), 兜底编译期
+  const injected = (window as any).__APP_CONFIG__ || {};
   return {
-    appBaseUrl: __APP_BASE_URL__ || '',
-    registryBaseUrl: __APP_REGISTRY_BASE_URL__ || '',
-    deployEnv: __APP_DEPLOY_ENV__ || 'development',
+    appBaseUrl: injected.appBaseUrl || __APP_BASE_URL__ || '',
+    registryBaseUrl: injected.registryBaseUrl || __APP_REGISTRY_BASE_URL__ || '',
+    deployEnv: injected.deployEnv || __APP_DEPLOY_ENV__ || 'development',
     workspaceDir: WORKSPACE_ROOT,
     theme: 'opensumi-design-dark-theme',
     chatConfig: APP_CHAT_CONFIG,

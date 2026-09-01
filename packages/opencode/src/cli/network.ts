@@ -30,6 +30,10 @@ const options = {
     describe: "additional domains to allow for CORS",
     default: [] as string[],
   },
+  registry: {
+    type: "string" as const,
+    describe: "registry service URL for the web UI (e.g. https://registry.example.com)",
+  },
 }
 
 export type NetworkOptions = InferredOptionTypes<typeof options>
@@ -75,6 +79,7 @@ export function resolveNetworkOptionsNoConfig(args: NetworkOptions, config?: Con
   const configCors = config?.server?.cors ?? []
   const argsCors = Array.isArray(args.cors) ? args.cors : args.cors ? [args.cors] : []
   const cors = [...configCors, ...argsCors]
+  const registry = args.registry
 
-  return { hostname, port, mdns, mdnsDomain, cors }
+  return { hostname, port, mdns, mdnsDomain, cors, registry }
 }

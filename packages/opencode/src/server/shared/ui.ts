@@ -1,19 +1,24 @@
 import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Effect, Stream } from "effect"
+import { Context, Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
 import { ProxyUtil } from "../proxy-util"
+
+/** Registry 地址 (--registry): sumi 扩展市场服务, 注入到嵌入的 web UI */
+export const RegistryConfig = Context.Reference<string | undefined>("@opencode/RegistryConfig", {
+  defaultValue: () => undefined,
+})
 
 let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
 
 export const UI_UPSTREAM = new URL("https://app.opencode.ai")
 
 export const csp = (hash = "") =>
-  // numas: 内嵌的是 opensumi (codeblitz) IDE, 需要:
-  //   - 'unsafe-eval' (fury 序列化器 eval)
-  //   - style-src 允许 CDN (opensumi 加载 alicdn/gw.alipayobjects codicon 字体)
-  //   - worker-src blob: (monaco/opensumi worker 从 blob 创建)
-  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: blob:; font-src 'self' data: https: http:; media-src 'self' data:; connect-src * data: blob:; worker-src 'self' blob:`
+  // numas: 内嵌的是 opensumi (codeblitz) IDE, local dev tool — 全面放开 CSP
+  //   - default-src * (允许所有协议/host)
+  //   - script/worker/style/img/font/connect/frame/manifest 全 *
+  //   - 不限制 unsafe-inline / unsafe-eval / wasm-unsafe-eval
+  `default-src *; script-src * 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; font-src * data:; media-src * data: blob:; connect-src * data: blob:; worker-src * blob:; frame-src *; manifest-src *; object-src *; base-uri *; form-action *`
 export const DEFAULT_CSP = csp()
 
 export function themePreloadHash(body: string) {
@@ -56,25 +61,33 @@ function notFound() {
   return HttpServerResponse.jsonUnsafe({ error: "Not Found" }, { status: 404 })
 }
 
-function embeddedUIResponse(file: string, body: Uint8Array) {
+function embeddedUIResponse(file: string, body: Uint8Array, registry?: string) {
   const mime = FSUtil.mimeType(file)
   const headers = new Headers({ "content-type": mime })
+  let data = body
   if (mime.startsWith("text/html")) {
-    headers.set("content-security-policy", cspForHtml(new TextDecoder().decode(body)))
+    const html = new TextDecoder().decode(body)
+    headers.set("content-security-policy", cspForHtml(html))
+    // 注入 registry 地址: sumi 前端读 window.__APP_CONFIG__.registryBaseUrl (运行时优先)
+    if (registry) {
+      const script = `<script>window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__, { registryBaseUrl: ${JSON.stringify(registry)} });</script>`
+      data = new TextEncoder().encode(html.replace("</body>", script + "</body>"))
+    }
   }
-  return HttpServerResponse.raw(body, { headers })
+  return HttpServerResponse.raw(data, { headers })
 }
 
 export function serveEmbeddedUIEffect(
   requestPath: string,
   fs: FSUtil.Interface,
   embeddedWebUI: Record<string, string>,
+  registry?: string,
 ) {
   const file = embeddedWebUI[requestPath.replace(/^\//, "")] ?? embeddedWebUI["index.html"] ?? null
   if (!file) return Effect.succeed(notFound())
 
   return fs.readFile(file).pipe(
-    Effect.map((body) => embeddedUIResponse(file, body)),
+    Effect.map((body) => embeddedUIResponse(file, body, registry)),
     Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
   )
 }
@@ -85,9 +98,10 @@ export function serveUIEffect(
 ) {
   return Effect.gen(function* () {
     const embeddedWebUI = yield* Effect.promise(() => embeddedUI(services.disableEmbeddedWebUi))
+    const registry = yield* RegistryConfig
     const path = new URL(request.url, "http://localhost").pathname
 
-    if (embeddedWebUI) return yield* serveEmbeddedUIEffect(path, services.fs, embeddedWebUI)
+    if (embeddedWebUI) return yield* serveEmbeddedUIEffect(path, services.fs, embeddedWebUI, registry)
 
     const response = yield* services.client.execute(
       HttpClientRequest.make(request.method)(upstreamURL(path), {
