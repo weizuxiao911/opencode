@@ -24,10 +24,18 @@ const plugin = createSolidTransformPlugin()
 const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
 
 const createEmbeddedWebUIBundle = async () => {
-  console.log(`Building Web UI to embed in the binary`)
-  const appDir = path.join(import.meta.dirname, "../../app")
+  // numas 模式: NUMAS_WEB_DIST 指向 numas web 的静态产物 (已 build), 直接内嵌, 不构建 packages/app
+  const numasWebDist = process.env.NUMAS_WEB_DIST
+  let appDir: string
+  if (numasWebDist) {
+    console.log(`Building Web UI to embed in the binary (numas: ${numasWebDist})`)
+    appDir = path.resolve(numasWebDist, "..")
+  } else {
+    console.log(`Building Web UI to embed in the binary`)
+    appDir = path.join(import.meta.dirname, "../../app")
+    await $`OPENCODE_CHANNEL=${Script.channel} bun run --cwd ${appDir} build`
+  }
   const dist = path.join(appDir, "dist")
-  await $`OPENCODE_CHANNEL=${Script.channel} bun run --cwd ${appDir} build`
   const files = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: dist })))
     .map((file) => file.replaceAll("\\", "/"))
     .filter((file) => !file.endsWith(".map"))

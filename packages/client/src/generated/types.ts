@@ -2456,7 +2456,12 @@ export type FilesListOutput = {
     readonly workspaceID?: string
     readonly project: { readonly id: string; readonly directory: string }
   }
-  readonly data: ReadonlyArray<{ readonly path: string; readonly type: "file" | "directory" }>
+  readonly data: ReadonlyArray<{
+    readonly path: string
+    readonly type: "file" | "directory"
+    readonly size?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly mtime?: number | "Infinity" | "-Infinity" | "NaN"
+  }>
 }
 
 export type FilesFindInput = {
@@ -2492,7 +2497,12 @@ export type FilesFindOutput = {
     readonly workspaceID?: string
     readonly project: { readonly id: string; readonly directory: string }
   }
-  readonly data: ReadonlyArray<{ readonly path: string; readonly type: "file" | "directory" }>
+  readonly data: ReadonlyArray<{
+    readonly path: string
+    readonly type: "file" | "directory"
+    readonly size?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly mtime?: number | "Infinity" | "-Infinity" | "NaN"
+  }>
 }
 
 export type FilesStatInput = {
@@ -2512,7 +2522,12 @@ export type FilesStatOutput = {
     readonly workspaceID?: string
     readonly project: { readonly id: string; readonly directory: string }
   }
-  readonly data: { readonly path: string; readonly type: "file" | "directory" }
+  readonly data: {
+    readonly path: string
+    readonly type: "file" | "directory"
+    readonly size?: number | "Infinity" | "-Infinity" | "NaN"
+    readonly mtime?: number | "Infinity" | "-Infinity" | "NaN"
+  }
 }
 
 export type FilesWriteInput = {

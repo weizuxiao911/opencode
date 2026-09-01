@@ -2,7 +2,7 @@ export * as FileSystem from "./filesystem"
 
 import { makeLocationNode } from "./effect/app-node"
 import path from "path"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema } from "effect"
 import { FSUtil } from "./fs-util"
 import { Location } from "./location"
 import { optional, PositiveInt, RelativePath } from "./schema"
@@ -123,11 +123,18 @@ const baseLayer = Layer.effect(
       if (!FSUtil.contains(root, parentReal)) return yield* Effect.die(new Error("Path escapes the location"))
       return { absolute, directory: location.directory, root }
     })
-    const toEntry = (absolute: string, directory: string, type: "file" | "directory"): Entry => {
+    const toEntry = (
+      absolute: string,
+      directory: string,
+      type: "file" | "directory",
+      info?: { size?: number; mtime?: number },
+    ): Entry => {
       const relative = path.relative(directory, absolute)
       return Entry.make({
         path: RelativePath.make(relative + (type === "directory" ? path.sep : "")),
         type,
+        ...(info?.size !== undefined ? { size: info.size } : {}),
+        ...(info?.mtime !== undefined ? { mtime: info.mtime } : {}),
       })
     }
     return Service.of({
@@ -165,7 +172,17 @@ const baseLayer = Layer.effect(
         const info = yield* fs.stat(target.real).pipe(Effect.orDie)
         if (info.type !== "File" && info.type !== "Directory")
           return yield* Effect.die(new Error("Path is not a regular file or directory"))
-        return toEntry(target.absolute, target.directory, info.type === "Directory" ? "directory" : "file")
+        const isDir = info.type === "Directory"
+        const fileInfo = isDir
+          ? undefined
+          : {
+              size: Number(info.size),
+              mtime: Option.match(info.mtime, {
+                onNone: () => undefined,
+                onSome: (date) => date.getTime(),
+              }),
+            }
+        return toEntry(target.absolute, target.directory, isDir ? "directory" : "file", fileInfo)
       }),
       write: Effect.fn("FileSystem.write")(function* (input) {
         const target = yield* resolveTarget(input.path)

@@ -31,6 +31,8 @@ export interface Entry extends Schema.Schema.Type<typeof Entry> {}
 export const Entry = Schema.Struct({
   path: RelativePath,
   type: Schema.Literals(["file", "directory"]),
+  size: optional(Schema.Number),
+  mtime: optional(Schema.Number),
 }).annotate({ identifier: "FileSystem.Entry" })
 
 export interface Submatch extends Schema.Schema.Type<typeof Submatch> {}

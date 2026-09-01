@@ -78,6 +78,9 @@ Content-Type: application/json
   "recursive": true
 }
 
+### fs.watch (SSE)
+GET {{host}}/api/fs/watch?location[directory]={{directory}}
+
 # ============================================================
 # Session
 # ============================================================

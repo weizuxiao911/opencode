@@ -9,7 +9,11 @@ let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
 export const UI_UPSTREAM = new URL("https://app.opencode.ai")
 
 export const csp = (hash = "") =>
-  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; media-src 'self' data:; connect-src * data: blob:`
+  // numas: 内嵌的是 opensumi (codeblitz) IDE, 需要:
+  //   - 'unsafe-eval' (fury 序列化器 eval)
+  //   - style-src 允许 CDN (opensumi 加载 alicdn/gw.alipayobjects codicon 字体)
+  //   - worker-src blob: (monaco/opensumi worker 从 blob 创建)
+  `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: blob:; font-src 'self' data: https: http:; media-src 'self' data:; connect-src * data: blob:; worker-src 'self' blob:`
 export const DEFAULT_CSP = csp()
 
 export function themePreloadHash(body: string) {
