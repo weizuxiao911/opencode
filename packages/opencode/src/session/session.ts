@@ -881,6 +881,7 @@ const layer: Layer.Layer<
       field: string
       delta: string
     }) {
+      yield* Effect.logInfo("[DELTA]", { sid: input.sessionID, mid: input.messageID, pid: input.partID, field: input.field, d: input.delta.slice(0, 20) })
       yield* events.publish(MessageV2.Event.PartDelta, input)
     })
 

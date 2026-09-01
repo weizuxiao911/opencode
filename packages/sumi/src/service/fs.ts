@@ -700,9 +700,10 @@ export class FileSystemServiceImpl implements IFileSystem {
       unlink: FileChangeType.DELETED,
     };
     try {
-      // V2 SDK SSE: /api/event 走 effect-smol HttpApi, 顶层 {id, location?, type, data}
-      // (跟 V1 /global/event 的 {payload:{id,type,properties}} 不同, 移除 payload 包装).
-      const source = new EventSource(secureUrl(`${base}/api/event`), { withCredentials: false });
+      // V1 全局 SSE: /global/event 顶层 {payload:{id,type,properties}}.
+      // fs watcher 事件 (file.watcher.updated) 和 chat 流式 (message.part.delta) 都走这里.
+      // V2 /api/event 顶层 {id, type, data} 也做兜底 (统一用 V1 通道, 保证 UTF-8 编码一致).
+      const source = new EventSource(secureUrl(`${base}/global/event`), { withCredentials: false });
       this.eventAbort = new AbortController();
       source.onmessage = (msg) => {
         try {
@@ -734,7 +735,7 @@ export class FileSystemServiceImpl implements IFileSystem {
         } catch { /* ignore bad frame */ }
       };
       source.onerror = () => { /* EventSource 自动重连 */ };
-      console.log('[filesystem] /api/event subscribed (V2 SSE)');
+      console.log('[filesystem] /global/event subscribed (V1 SSE)');
     } catch (e) {
       console.warn('[filesystem] event subscribe 失败:', e);
     }

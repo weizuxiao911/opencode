@@ -46,7 +46,7 @@ function eventResponse() {
         Stream.ensuring(Effect.logInfo("global event disconnected")),
       ),
       {
-        contentType: "text/event-stream",
+        contentType: "text/event-stream; charset=utf-8",
         headers: {
           "Cache-Control": "no-cache, no-transform",
           "X-Accel-Buffering": "no",

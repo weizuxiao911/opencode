@@ -477,12 +477,14 @@ export const Chat: React.FC = () => {
         return next;
       });
     };
-    /** V2 SSE 订阅: EventSource('/api/event') → async iterable {type, data}.
-     *  V1 /global/event 是 {payload:{id,type,properties}}, 已弃用. */
+    /** V1 全局 SSE 订阅: EventSource('/global/event') → async iterable {type, properties}.
+     *  V1 wire format 是 {payload:{id,type,properties}} (chat 兼容), V2 /api/event 顶层
+     *  {id, type, data} 也做兜底. 用 /global/event 因为 V1 message.part.delta (流式增量)
+     *  只通过 V1 通道广播. */
     const subscribeV1Events = async (): Promise<AsyncIterableIterator<{ type: string; properties: any }>> => {
       const base = (window as any).__APP_OPENCODE_RUNTIME__?.baseUrl;
       if (!base) throw new Error('opencode baseUrl missing');
-      const source = new EventSource(secureUrl(`${base}/api/event`), { withCredentials: false });
+      const source = new EventSource(secureUrl(`${base}/global/event`), { withCredentials: false });
       es = source;
       const queue: Array<{ type: string; properties: any }> = [];
       let resolveNext: ((v: IteratorResult<{ type: string; properties: any }>) => void) | null = null;
@@ -507,7 +509,7 @@ export const Chat: React.FC = () => {
       source.onerror = () => {
         if (closed) return;
         // EventSource 浏览器自动重连, 不需要手动 reconnect
-        console.warn('[chat] /api/event SSE 异常, 浏览器自动重连');
+        console.warn('[chat] /global/event SSE 异常, 浏览器自动重连');
       };
       const it: AsyncIterableIterator<{ type: string; properties: any }> = {
         [Symbol.asyncIterator]() { return this; },
