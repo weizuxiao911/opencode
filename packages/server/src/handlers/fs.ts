@@ -157,7 +157,7 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
           return HttpServerResponse.stream(
             sseStream.pipe(Stream.merge(heartbeat, { haltStrategy: "left" }), Stream.encodeText),
             {
-              contentType: "text/event-stream",
+              contentType: "text/event-stream; charset=utf-8",
               headers: {
                 "Cache-Control": "no-cache, no-transform",
                 "X-Accel-Buffering": "no",
