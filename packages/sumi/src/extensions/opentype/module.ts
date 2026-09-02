@@ -193,15 +193,12 @@ export class OpenTypeContribution implements BrowserEditorContribution, CommandC
     return types.filter((t) => (t as any).componentId !== WELCOME_ID);
   }
 
-  /** 用指定打开方式打开文件 (未打开则先 open) */
+  /** 用指定打开方式打开文件.
+   * 用 forceOpenType 让 opensumi 直接以指定 component (re)open — 同一 uri 已打开会替换,
+   * 自定义编辑器 (htmlViewer/paperEditor) ↔ 内置 code 跨 slot 也能切. */
   private async openWith(uri: URI, item: IEditorOpenType): Promise<void> {
-    const group = this.editorService.currentEditorGroup;
-    if (!group) return;
-    const current = group.currentResource?.uri;
-    if (!current || !current.isEqual(uri)) {
-      await this.editorService.open(uri, { preview: false });
-    }
-    group.changeOpenType((item as any).componentId ?? item.type);
+    if (!this.editorService.currentEditorGroup) return;
+    await this.editorService.open(uri, { preview: false, focus: true, forceOpenType: item });
   }
 
   /** 写默认编辑器关联: preference 优先 (超时保护), 失败降级 localStorage; 当前文件立即应用 */
